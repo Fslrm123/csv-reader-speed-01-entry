@@ -2,24 +2,17 @@
 // array of {id, input}), answers each one alone with run() from solve.js, and writes /output/answers.json:
 // a JSON array of the answers, one per case and in the cases' order. Outside a container
 // MAKEFUN_INPUT_DIR and MAKEFUN_OUTPUT_DIR stand in for /input and /output.
+//
+// Driver choices measured on fresh processes (the heat times fresh processes):
+// - flags.js is imported first, so the V8 flags are set before solve.js loads (see flags.js);
+// - cases.json is read as a Buffer and decoded with toString('utf8'): readFileSync(path, 'utf8')
+//   takes a much slower path in Node for a file this size;
+// - answers are written with writeSync(fd, string, 'utf8') directly: building a Buffer from each
+//   answer string first (Buffer.from + writeSync loop) costs an extra encode/copy pass.
 
+import './flags.js';
 import { readFileSync, openSync, writeSync, closeSync } from 'node:fs';
-import { join } from 'node:path';
-import { setFlagsFromString } from 'node:v8';
-
-// V8 flags, set before solve.js is imported so all of its work runs under them (the rules: the house
-// baseline runs with --no-incremental-marking, and an entry may tune V8's flags the same way):
-// - --no-incremental-marking, as the house baseline runs;
-// - --no-turbofan --no-concurrent-recompilation: every timed run is a fresh process, and on this
-//   workload TurboFan's repeated speculative recompilations of the reader (deopt cycles on one large
-//   function, each compile tens of milliseconds of CPU on a background thread) cost more than its
-//   peak speed saves before the process ends. Maglev compiles the reader once, quickly, during the
-//   warm-up below — synchronously, on this thread — and then runs every case at a steady speed.
-setFlagsFromString('--no-incremental-marking');
-setFlagsFromString('--no-turbofan --no-concurrent-recompilation');
-
-/** solve.js, imported by its URL (a .js module carries no types) and typed by its contract. */
-const { run } = (await import(new URL('./solve.js', import.meta.url).href)) as { run: (input: unknown) => unknown };
+import { run } from './solve.js';
 
 // Warm-up: run the reader over small inputs that exercise every path it has (quoted fields and ""
 // escapes, multi-line notes with lone CRs, stray CRs, quote junk, short and long rows, blank lines,
@@ -31,7 +24,7 @@ const WARM_TEXTS = [
   'only\n"a""b""c",d\n\r\re,f\ng,"h\ri",j',
 ];
 let warmRows = 0;
-for (let i = 0; i < 300; i++) {
+for (let i = 0; i < 600; i++) {
   warmRows += (run({ text: WARM_TEXTS[i % WARM_TEXTS.length]!, header: i % 2 === 0 }) as { rows: unknown[] }).rows.length;
 }
 if (warmRows === 0) throw new Error('warm-up read no rows');
@@ -39,24 +32,19 @@ if (warmRows === 0) throw new Error('warm-up read no rows');
 const INPUT_DIR = process.env.MAKEFUN_INPUT_DIR ?? '/input';
 const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-const cases = JSON.parse(readFileSync(join(INPUT_DIR, 'cases.json'), 'utf8')) as { id: string; input: unknown }[];
+const cases = JSON.parse(readFileSync(INPUT_DIR + '/cases.json').toString('utf8')) as { id: string; input: unknown }[];
 
 // Stream the answers out case by case — the same bytes as JSON.stringify of the whole array
 // ('[' + the answers joined by ',' + ']') — releasing each case's input and answer as soon as it
 // is written, so the live heap stays small while the later cases run.
-function writeAll(fd: number, s: string) {
-  const buf = Buffer.from(s, 'utf8');
-  let off = 0;
-  while (off < buf.length) off += writeSync(fd, buf, off, buf.length - off);
-}
-const fd = openSync(join(OUTPUT_DIR, 'answers.json'), 'w');
+const fd = openSync(OUTPUT_DIR + '/answers.json', 'w');
 try {
-  writeAll(fd, '[');
+  writeSync(fd, '[', 'utf8');
   for (let i = 0; i < cases.length; i++) {
-    writeAll(fd, (i > 0 ? ',' : '') + JSON.stringify(run(cases[i]!.input)));
+    writeSync(fd, (i > 0 ? ',' : '') + JSON.stringify(run(cases[i]!.input)), 'utf8');
     (cases as unknown[])[i] = null;
   }
-  writeAll(fd, ']');
+  writeSync(fd, ']', 'utf8');
 } finally {
   closeSync(fd);
 }
