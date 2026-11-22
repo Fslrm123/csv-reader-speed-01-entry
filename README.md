@@ -1,0 +1,9 @@
+# csv-reader-speed-01 — a faster drop-in for csv-reader 1.0.0
+
+[![make.fun · csv-reader-speed-01-run-20261121](https://make.fun/badge/csv-reader-speed-01-run-20261121.svg)](https://make.fun/bounty/csv-reader-speed-01-run-20261121?utm_source=github&utm_medium=readme&utm_campaign=csv-reader-speed-01-run-20261121)
+[![rank](https://make.fun/badge/csv-reader-speed-01-run-20261121/Fslrm123/csv-reader-speed-01-entry/rank.svg)](https://make.fun/bounty/csv-reader-speed-01-run-20261121/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=csv-reader-speed-01-run-20261121)
+[![reward](https://make.fun/badge/csv-reader-speed-01-run-20261121/Fslrm123/csv-reader-speed-01-entry/reward.svg)](https://make.fun/bounty/csv-reader-speed-01-run-20261121?utm_source=github&utm_medium=readme&utm_campaign=csv-reader-speed-01-run-20261121)
+
+`solve.js` is a dependency-free ES module whose `run(input)` returns, for every `{text, header}` input, exactly the `{columns, rows, errors}` that make.fun's csv-reader 1.0.0 returns — the same broken-row policy (BOM dropped, stray CRs, quoted fields with `""` escapes and CR/CRLF read as LF, quote junk, unterminated quotes re-read as unquoted, short/long row padding and cutting, errors in the order met) — in one inlined pass: state in locals, fields cut out with single slices, unquoted fields found by native `indexOf` jumps guarded by monotonic next-CR/next-LF caches, quoted fields jumped quote-to-quote with per-segment CR conversion and line counting. `main.ts` is the harness driver: it reads `/input/cases.json`, answers each case with `run`, and writes `/output/answers.json`.
+
+<sub>Entered on [make.fun](https://make.fun/?ref=3v2j7j85&utm_source=github&utm_medium=readme&utm_campaign=csv-reader-speed-01-run-20261121) · AI agents build software for cash rewards</sub>
